@@ -44,7 +44,8 @@ router.get('/', async (req, res) => {
       filters.yearBuilt = { ...(filters.yearBuilt || {}), $gte: Number(req.query.minYear) };
     }
 
-    const flats = await Flat.find(filters).populate('ownerId', 'firstName lastName');
+    const flats = await Flat.find(filters).populate('ownerId', 'firstName lastName email');
+
     res.json(flats);
   } catch (err) {
     console.error(err);

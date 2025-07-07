@@ -176,5 +176,64 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+// ================================
+// DELETE /users/:id (Apenas Admin)
+// ================================
+router.delete('/:id', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const requesterId = decoded.userId;
+
+    const adminUser = await User.findById(requesterId);
+    if (!adminUser?.isAdmin) {
+      return res.status(403).json({ message: 'Apenas admins podem remover utilizadores' });
+    }
+
+    if (requesterId === req.params.id) {
+      return res.status(400).json({ message: 'Um admin não pode apagar a sua própria conta' });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Utilizador removido com sucesso' });
+  } catch (err) {
+    console.error('Erro ao remover utilizador:', err);
+    res.status(500).json({ message: 'Erro ao remover utilizador' });
+  }
+});
+
+// ===========================
+// GET /users - listar todos os utilizadores (apenas para admin)
+// ===========================
+router.get('/', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const requesterId = decoded.userId;
+
+    const user = await User.findById(requesterId);
+    if (!user?.isAdmin) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Não incluir password
+    const users = await User.find({}, '-password');
+    res.json(users);
+  } catch (err) {
+    console.error('Erro ao obter utilizadores:', err);
+    res.status(500).json({ message: 'Erro ao obter utilizadores' });
+  }
+});
+
 
 module.exports = router;
