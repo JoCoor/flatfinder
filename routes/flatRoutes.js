@@ -12,15 +12,46 @@ const upload = multer({ storage });
 // ===========================
 // GET /flats - listar todos
 // ===========================
+// ROTA: GET /flats - listar com filtros
 router.get('/', async (req, res) => {
   try {
-    const flats = await Flat.find().populate('ownerId', 'firstName lastName');
+    const filters = {};
+
+    // Filtros opcionais da query string
+    if (req.query.city) {
+      filters.city = { $regex: new RegExp(req.query.city, 'i') }; // case-insensitive
+    }
+
+    if (req.query.hasAc === 'true') {
+      filters.hasAc = true;
+    } else if (req.query.hasAc === 'false') {
+      filters.hasAc = false;
+    }
+
+    if (req.query.minArea) {
+      filters.areaSize = { ...(filters.areaSize || {}), $gte: Number(req.query.minArea) };
+    }
+
+    if (req.query.maxArea) {
+      filters.areaSize = { ...(filters.areaSize || {}), $lte: Number(req.query.maxArea) };
+    }
+
+    if (req.query.maxPrice) {
+      filters.rentPrice = { ...(filters.rentPrice || {}), $lte: Number(req.query.maxPrice) };
+    }
+
+    if (req.query.minYear) {
+      filters.yearBuilt = { ...(filters.yearBuilt || {}), $gte: Number(req.query.minYear) };
+    }
+
+    const flats = await Flat.find(filters).populate('ownerId', 'firstName lastName');
     res.json(flats);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Error fetching flats' });
+    res.status(500).json({ message: 'Erro ao buscar flats' });
   }
 });
+
 
 
 // ===========================

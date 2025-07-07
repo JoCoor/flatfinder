@@ -71,7 +71,7 @@ router.post('/login', async (req, res) => {
     res.json({
       token,
       user: {
-        id: user._id,
+        _id: user._id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -132,6 +132,47 @@ router.get('/favorites', async (req, res) => {
   } catch (err) {
     console.error('Erro ao obter favoritos:', err);
     res.status(500).json({ message: 'Erro ao obter favoritos' });
+  }
+});
+
+// PATCH /users/:id - atualizar dados do utilizador
+router.patch('/:id', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const requesterId = decoded.userId;
+
+    const user = await User.findById(requesterId);
+    const isAdmin = user?.isAdmin;
+    const isOwner = requesterId.toString() === req.params.id.toString();
+
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const { firstName, lastName, birthDate, password } = req.body;
+    const updates = {};
+
+    if (firstName) updates.firstName = firstName;
+    if (lastName) updates.lastName = lastName;
+    if (birthDate) updates.birthDate = birthDate;
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updates.password = hashedPassword;
+    }
+
+    await User.findByIdAndUpdate(req.params.id, updates, { new: true });
+
+    res.json({ message: 'Perfil atualizado com sucesso!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erro ao atualizar o perfil' });
   }
 });
 
