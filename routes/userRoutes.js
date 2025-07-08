@@ -162,6 +162,11 @@ router.patch('/:id', async (req, res) => {
     if (firstName) updates.firstName = firstName;
     if (lastName) updates.lastName = lastName;
     if (birthDate) updates.birthDate = birthDate;
+    if (typeof isAdmin === 'boolean') {
+  updates.isAdmin = isAdmin;
+}
+
+
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       updates.password = hashedPassword;
@@ -234,6 +239,71 @@ router.get('/', async (req, res) => {
     res.status(500).json({ message: 'Erro ao obter utilizadores' });
   }
 });
+
+const Message = require('../models/Message'); // Certifica-te que este modelo está importado
+
+// ===============================
+// GET /users/messages - mensagens enviadas pelo utilizador
+// ===============================
+router.get('/messages', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Token não fornecido' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    const messages = await Message.find({ senderId: userId })
+      .sort({ createdAt: -1 })
+      .populate('flatId') // necessário para mostrar info do flat no frontend
+      .exec();
+
+    res.json(messages);
+  } catch (err) {
+    console.error('Erro ao buscar mensagens do utilizador:', err);
+    res.status(500).json({ message: 'Erro ao buscar mensagens' });
+  }
+});
+// GET /flats/:id/conversation - para utilizador ver a conversa completa com o dono
+router.get('/:id/conversation', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    const flatId = req.params.id;
+
+    // Obtem todas as mensagens relacionadas a este flat
+    const messages = await Message.find({ flatId })
+      .populate('senderId', 'firstName lastName email')
+      .sort({ createdAt: 1 });
+
+    // Filtra só se o user for o dono ou alguém que iniciou conversa com este flat
+    const flat = await Flat.findById(flatId);
+    if (!flat) return res.status(404).json({ message: 'Flat not found' });
+
+    const isOwner = flat.ownerId.toString() === userId;
+    const isParticipant = messages.some(msg => msg.senderId._id.toString() === userId);
+
+    if (!isOwner && !isParticipant) {
+      return res.status(403).json({ message: 'Acesso negado à conversa' });
+    }
+
+    res.json(messages);
+  } catch (err) {
+    console.error('Erro ao carregar conversa:', err);
+    res.status(500).json({ message: 'Erro ao carregar conversa' });
+  }
+});
+
 
 
 module.exports = router;
